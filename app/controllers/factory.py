@@ -1,11 +1,13 @@
 from .. import models
 from .base import BaseServerController
 from .r730 import R730Controller
+from .r4900g3 import R4900G3Controller
 
 # 注册所有可用的控制器
 # 键是服务器型号 (小写)，值是控制器类
 CONTROLLER_MAP = {
     "r730": R730Controller,
+    "r4900g3": R4900G3Controller,
 }
 
 class UnsupportedModelError(Exception):

@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .services.scheduler import scheduler
+from .services import per_server_scheduler
 
 # 创建所有数据库表
 async def create_tables():
@@ -13,12 +13,12 @@ async def create_tables():
 async def lifespan(app: FastAPI):
     # 应用启动时执行
     await create_tables()
-    scheduler.start()
-    print("--- Scheduler started and tables created ---")
+    await per_server_scheduler.start_all_loops()
+    print("--- All server loops started and tables created ---")
     yield
     # 应用关闭时执行
-    scheduler.shutdown()
-    print("--- Scheduler stopped ---")
+    per_server_scheduler.stop_all_loops()
+    print("--- All server loops stopped ---")
 
 
 app = FastAPI(

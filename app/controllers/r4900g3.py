@@ -97,38 +97,16 @@ class R4900G3Controller(BaseServerController):
                 speed_hex   # 风扇转速
             )
 
-    async def _set_system_fan_mode(self, mode: str):
-        """
-        设置系统风扇模式 (0x00: 静音, 0x01: 均衡, 0x02: 强劲, 0x03: 自定义)
-        并重新加载配置使其生效。
-        """
-        mode_hex = {
-            "silent": "0x00",
-            "balanced": "0x01",
-            "performance": "0x02",
-            "custom": "0x03"
-        }.get(mode, "0x00") # 默认为静音
-
-        # 1. 设置模式
-        # Data[7] 是风扇档位，对于模式设置，固定为 0x00
-        # Data[8] 是风扇模式 (0x00:静音, 0x01:均衡, 0x02:强劲, 0x03:自定义)
-        await self._run_ipmi_command('raw', '0x36', '0x03', '0xa2', '0x63', '0x00', '0x60', '0x00', mode_hex)
-        logger.info(f"Set R4900G3 system fan mode to '{mode}' for server {self.server.name}.")
-        
-        # 2. 重新加载配置以应用模式
-        await self._run_ipmi_command('raw', '0x36', '0x03', '0x20', '0x14', '0x00', '0x22')
-        logger.info(f"Reloaded fan configuration for server {self.server.name}.")
-
     async def take_over_fan_control(self):
         """
-        接管风扇控制权，通过将系统模式设置为“静音”来实现。
+        [PLACEHOLDER] 接管风扇控制权。此功能当前为占位符，不做任何操作。
         """
-        logger.info(f"Taking over fan control for {self.server.name} by setting system mode to 'silent'.")
-        await self._set_system_fan_mode("silent")
+        logger.info(f"take_over_fan_control for {self.server.name} is a placeholder. No action taken.")
+        pass
 
     async def return_fan_control_to_system(self):
         """
-        交还风扇控制权，通过将系统模式恢复为“静音”来实现。
+        [PLACEHOLDER] 交还风扇控制权。此功能当前为占位符，不做任何操作。
         """
-        logger.info(f"Returning fan control for {self.server.name} by setting system mode to 'silent'.")
-        await self._set_system_fan_mode("silent")
+        logger.info(f"return_fan_control_to_system for {self.server.name} is a placeholder. No action taken.")
+        pass

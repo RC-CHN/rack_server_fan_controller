@@ -42,6 +42,12 @@ async def _server_control_loop(server: models.Server):
     单个服务器的风扇控制循环。
     """
     logger.info(f"Starting control loop for server: {server.name} (ID: {server.id})")
+    controller = get_controller(server)
+    try:
+        await controller.take_over_fan_control()
+    except Exception as e:
+        logger.error(f"Error taking over fan control for {server.name}: {e}", exc_info=True)
+
     while True:
         try:
             # 每次循环都重新获取服务器信息，以防其状态（如 control_mode）发生变化
@@ -82,6 +88,11 @@ async def _server_control_loop(server: models.Server):
             await asyncio.sleep(30) # 出现异常时，等待较长时间后重试
 
     # 清理任务字典
+    try:
+        await controller.return_fan_control_to_system()
+    except Exception as e:
+        logger.error(f"Error returning fan control for {server.name}: {e}", exc_info=True)
+
     if server.id in SERVER_CONTROL_TASKS:
         del SERVER_CONTROL_TASKS[server.id]
     logger.info(f"Control loop for server {server.name} has stopped.")

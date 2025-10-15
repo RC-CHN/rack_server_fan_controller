@@ -72,10 +72,10 @@ class R730Controller(BaseServerController):
         else:
             logger.error(f"Invalid fan speed value: {speed}. Must be between 0 and 100.")
 
-    async def set_manual_fan_control(self):
+    async def take_over_fan_control(self):
         await self._run_ipmi_command('raw', '0x30', '0x30', '0x01', '0x00')
-        logger.info(f"Set fan mode to MANUAL for server {self.server.name}")
+        logger.info(f"Took over fan control for server {self.server.name} (set to manual).")
 
-    async def set_auto_fan_control(self):
+    async def return_fan_control_to_system(self):
         await self._run_ipmi_command('raw', '0x30', '0x30', '0x01', '0x01')
-        logger.info(f"Set fan mode to AUTO for server {self.server.name}")
+        logger.info(f"Returned fan control to system for server {self.server.name} (set to auto).")

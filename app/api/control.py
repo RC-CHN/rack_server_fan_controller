@@ -47,7 +47,7 @@ async def set_manual_fan_mode(server_id: int, speed_setting: schemas.ServerUpdat
 
     try:
         controller = get_controller(db_server)
-        await controller.set_manual_fan_control()
+        await controller.take_over_fan_control()
         await controller.set_fan_speed(speed_setting.manual_fan_speed)
         
         # 更新数据库状态
@@ -71,9 +71,9 @@ async def set_auto_fan_mode(server_id: int, curve: schemas.FanCurveCreate, db: A
         # 更新数据库中的曲线
         await crud.set_fan_curve(db, server_id=server_id, curve=curve)
         
-        # 切换服务器到自动模式
+        # 接管服务器风扇控制权，以便我们的应用可以动态设置转速
         controller = get_controller(db_server)
-        await controller.set_auto_fan_control()
+        await controller.take_over_fan_control()
 
         # 更新数据库状态
         await crud.update_server(db, server_id, schemas.ServerUpdate(control_mode="auto", manual_fan_speed=None))

@@ -47,15 +47,17 @@ class BaseServerController(ABC):
         pass
 
     @abstractmethod
-    async def set_manual_fan_control(self):
+    async def take_over_fan_control(self):
         """
-        将服务器风扇设置为手动控制模式。
+        接管风扇控制权，允许应用程序通过 set_fan_speed() 设置转速。
+        （对应 IPMI 的手动模式）
         """
         pass
 
     @abstractmethod
-    async def set_auto_fan_control(self):
+    async def return_fan_control_to_system(self):
         """
-        将服务器风扇恢复为系统自动（动态）控制模式。
+        将风扇控制权交还给服务器系统（iDRAC/BMC）。
+        （对应 IPMI 的系统自动模式）
         """
         pass

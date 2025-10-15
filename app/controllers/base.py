@@ -31,7 +31,6 @@ class BaseServerController(ABC):
         """
         pass
 
-    @abstractmethod
     async def get_all_sensors(self) -> list[dict]:
         """
         (可选实现) 获取所有传感器的原始读数列表，用于详细诊断。

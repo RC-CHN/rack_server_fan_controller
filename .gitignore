@@ -3,3 +3,4 @@ app/controllers/__pycache__/
 app/services/__pycache__/
 app/api/__pycache__/
 app.db
+test_add_server.py

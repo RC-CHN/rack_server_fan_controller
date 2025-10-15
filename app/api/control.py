@@ -5,7 +5,7 @@ from .. import crud, schemas
 from ..database import get_db
 from ..controllers.factory import get_controller, UnsupportedModelError
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 @router.get("/{server_id}/temperature", response_model=schemas.TemperatureReading)
 async def get_temperature(server_id: int, db: AsyncSession = Depends(get_db)):

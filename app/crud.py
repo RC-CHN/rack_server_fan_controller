@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 import datetime
 from . import models, schemas
 
@@ -9,7 +10,11 @@ from . import models, schemas
 
 async def get_server(db: AsyncSession, server_id: int):
     """根据 ID 获取单个服务器"""
-    result = await db.execute(select(models.Server).filter(models.Server.id == server_id))
+    result = await db.execute(
+        select(models.Server)
+        .filter(models.Server.id == server_id)
+        .options(selectinload(models.Server.fan_curves))
+    )
     return result.scalars().first()
 
 async def get_server_by_name(db: AsyncSession, name: str):
@@ -19,7 +24,12 @@ async def get_server_by_name(db: AsyncSession, name: str):
 
 async def get_servers(db: AsyncSession, skip: int = 0, limit: int = 100):
     """获取服务器列表"""
-    result = await db.execute(select(models.Server).offset(skip).limit(limit))
+    result = await db.execute(
+        select(models.Server)
+        .offset(skip)
+        .limit(limit)
+        .options(selectinload(models.Server.fan_curves))
+    )
     return result.scalars().all()
 
 async def create_server(db: AsyncSession, server: schemas.ServerCreate):
@@ -28,7 +38,8 @@ async def create_server(db: AsyncSession, server: schemas.ServerCreate):
     db.add(db_server)
     await db.commit()
     await db.refresh(db_server)
-    return db_server
+    # After creation, we need to get the full object with the relationship loaded
+    return await get_server(db, db_server.id)
 
 async def update_server(db: AsyncSession, server_id: int, server_update: schemas.ServerUpdate):
     """更新服务器信息"""

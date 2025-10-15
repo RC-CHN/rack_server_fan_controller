@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import crud, schemas
 from ..database import get_db
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 @router.get("/{server_id}/temperature", response_model=List[schemas.TemperatureHistory])
 async def read_temperature_history(

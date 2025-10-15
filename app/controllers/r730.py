@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from .base import BaseServerController
-from ... import models
+from .. import models
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)

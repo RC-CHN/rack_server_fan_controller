@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import crud, models, schemas
 from ..database import get_db
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 @router.post("/", response_model=schemas.Server)
 async def create_server(server: schemas.ServerCreate, db: AsyncSession = Depends(get_db)):

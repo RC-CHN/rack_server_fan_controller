@@ -4,3 +4,4 @@ app/services/__pycache__/
 app/api/__pycache__/
 app.db
 test_add_server.py
+test_add_r4900g3.py

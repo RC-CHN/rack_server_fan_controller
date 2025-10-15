@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
 from .services.scheduler import scheduler
 
@@ -25,6 +26,20 @@ app = FastAPI(
     description="一个通过IPMI控制机架服务器风扇转速的工具",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# 配置 CORS
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/")

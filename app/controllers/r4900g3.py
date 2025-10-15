@@ -110,6 +110,8 @@ class R4900G3Controller(BaseServerController):
         }.get(mode, "0x00") # 默认为静音
 
         # 1. 设置模式
+        # Data[7] 是风扇档位，对于模式设置，固定为 0x00
+        # Data[8] 是风扇模式 (0x00:静音, 0x01:均衡, 0x02:强劲, 0x03:自定义)
         await self._run_ipmi_command('raw', '0x36', '0x03', '0xa2', '0x63', '0x00', '0x60', '0x00', mode_hex)
         logger.info(f"Set R4900G3 system fan mode to '{mode}' for server {self.server.name}.")
         

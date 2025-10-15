@@ -32,7 +32,8 @@ async def read_root():
     return {"message": "Welcome to the Rack Server Fan Controller API"}
 
 # 引入 API 路由
-from .api import servers, control
+from .api import servers, control, history
 
 app.include_router(servers.router, prefix="/api/v1/servers", tags=["Servers"])
 app.include_router(control.router, prefix="/api/v1/control", tags=["Control"])
+app.include_router(history.router, prefix="/api/v1/history", tags=["History"])

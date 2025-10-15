@@ -102,5 +102,5 @@ scheduler = AsyncIOScheduler()
 
 # 添加任务
 # 你可以根据需要调整这里的间隔时间
-scheduler.add_job(record_metrics, 'interval', minutes=1)
-scheduler.add_job(auto_control_fans, 'interval', seconds=20)
+scheduler.add_job(record_metrics, 'interval', seconds=30)
+scheduler.add_job(auto_control_fans, 'interval', seconds=10)

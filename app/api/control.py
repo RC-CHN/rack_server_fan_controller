@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import crud, schemas
 from ..database import get_db
 from ..controllers.factory import get_controller, UnsupportedModelError
+from ..services import per_server_scheduler
 
 router = APIRouter(redirect_slashes=False)
 
@@ -51,10 +52,13 @@ async def set_manual_fan_mode(server_id: int, speed_setting: schemas.ServerUpdat
         await controller.set_fan_speed(speed_setting.manual_fan_speed)
         
         # 更新数据库状态
-        await crud.update_server(db, server_id, schemas.ServerUpdate(
+        updated_server = await crud.update_server(db, server_id, schemas.ServerUpdate(
             control_mode="manual",
             manual_fan_speed=speed_setting.manual_fan_speed
         ))
+        
+        # 重要：停止自动控制循环（手动模式不需要自动控制）
+        await per_server_scheduler.stop_server_control_loop(server_id)
         
         return {"message": f"Fan speed for server {server_id} set to manual at {speed_setting.manual_fan_speed}%"}
     except UnsupportedModelError as e:
@@ -76,7 +80,10 @@ async def set_auto_fan_mode(server_id: int, curve: schemas.FanCurveCreate, db: A
         await controller.take_over_fan_control()
 
         # 更新数据库状态
-        await crud.update_server(db, server_id, schemas.ServerUpdate(control_mode="auto", manual_fan_speed=None))
+        updated_server = await crud.update_server(db, server_id, schemas.ServerUpdate(control_mode="auto", manual_fan_speed=None))
+        
+        # 重要：启动自动控制循环
+        await per_server_scheduler.start_server_control_loop(updated_server)
 
         return {"message": f"Fan control for server {server_id} set to auto with updated curve."}
     except UnsupportedModelError as e:

@@ -9,28 +9,28 @@ router = APIRouter(redirect_slashes=False)
 
 @router.get("/{server_id}/temperature", response_model=schemas.TemperatureReading)
 async def get_temperature(server_id: int, db: AsyncSession = Depends(get_db)):
-    """获取服务器当前实时温度"""
+    """获取服务器当前温度（使用缓存机制）"""
     db_server = await crud.get_server(db, server_id=server_id)
     if db_server is None:
         raise HTTPException(status_code=404, detail="Server not found")
     
     try:
         controller = get_controller(db_server)
-        temperature = await controller.get_temperature()
+        temperature = await controller.get_temperature_cached()
         return {"server_id": server_id, "temperature": temperature}
     except UnsupportedModelError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/{server_id}/fan/speed", response_model=schemas.FanSpeedReading)
 async def get_fan_speed(server_id: int, db: AsyncSession = Depends(get_db)):
-    """获取服务器当前平均风扇转速"""
+    """获取服务器当前平均风扇转速（使用缓存机制）"""
     db_server = await crud.get_server(db, server_id=server_id)
     if db_server is None:
         raise HTTPException(status_code=404, detail="Server not found")
 
     try:
         controller = get_controller(db_server)
-        speed_rpm = await controller.get_fan_speed()
+        speed_rpm = await controller.get_fan_speed_cached()
         return {"server_id": server_id, "average_speed_rpm": speed_rpm}
     except UnsupportedModelError as e:
         raise HTTPException(status_code=400, detail=str(e))

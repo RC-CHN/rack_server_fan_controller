@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 from .. import models, crud
 from ..database import AsyncSessionLocal
 from .. import crud_cache
+
+logger = logging.getLogger(__name__)
 
 class BaseServerController(ABC):
     """
@@ -20,9 +23,27 @@ class BaseServerController(ABC):
         self._temp_cache_age = 30  # 温度缓存有效期（秒）
         self._fan_cache_age = 60   # 风扇速度缓存有效期（秒）
 
-    async def get_temperature_with_cache(self) -> float:
+    async def get_temperature_realtime(self) -> float:
         """
-        带缓存机制获取温度数据。
+        实时获取温度数据（用于风扇控制）。
+        始终执行IPMI命令获取最新数据，确保控制的及时性。
+        :return: 浮点型的温度值，如果获取失败返回-1.0。
+        """
+        try:
+            ipmi_temp = await self._get_temperature_from_ipmi()
+            if ipmi_temp != -1.0:
+                # 将新数据写入数据库作为历史记录
+                async with AsyncSessionLocal() as db:
+                    await crud.create_temperature_history(db, server_id=self.server.id, temperature=ipmi_temp)
+            return ipmi_temp
+            
+        except Exception as e:
+            logger.error(f"Error getting realtime temperature for {self.server.name}: {e}")
+            return -1.0
+    
+    async def get_temperature_cached(self) -> float:
+        """
+        带缓存机制获取温度数据（用于API和指标显示）。
         优先从数据库缓存获取，如果缓存过期则调用IPMI命令获取最新数据。
         :return: 浮点型的温度值，如果获取失败返回-1.0。
         """
@@ -34,14 +55,10 @@ class BaseServerController(ABC):
                     return cached_temp
                 
                 # 缓存过期或不存在，从IPMI获取
-                ipmi_temp = await self._get_temperature_from_ipmi()
-                if ipmi_temp != -1.0:
-                    # 将新数据写入数据库作为新的缓存点
-                    await crud.create_temperature_history(db, server_id=self.server.id, temperature=ipmi_temp)
-                return ipmi_temp
+                return await self.get_temperature_realtime()
                 
         except Exception as e:
-            print(f"Error getting temperature with cache for {self.server.name}: {e}")
+            logger.error(f"Error getting cached temperature for {self.server.name}: {e}")
             return -1.0
     
     @abstractmethod
@@ -55,15 +72,33 @@ class BaseServerController(ABC):
 
     async def get_temperature(self) -> float:
         """
-        获取用于风扇控制的决策温度（使用缓存机制）。
+        获取用于风扇控制的决策温度（实时获取）。
         对于多路CPU的服务器，此方法应负责处理并返回一个单一的、有代表性的温度值（如最高温或平均温）。
         :return: 浮点型的温度值。
         """
-        return await self.get_temperature_with_cache()
+        return await self.get_temperature_realtime()
 
-    async def get_fan_speed_with_cache(self) -> int:
+    async def get_fan_speed_realtime(self) -> int:
         """
-        带缓存机制获取风扇速度数据。
+        实时获取风扇速度数据（用于风扇控制）。
+        始终执行IPMI命令获取最新数据，确保控制的及时性。
+        :return: 整型的风扇速度值，如果获取失败返回-1。
+        """
+        try:
+            ipmi_speed = await self._get_fan_speed_from_ipmi()
+            if ipmi_speed != -1:
+                # 将新数据写入数据库作为历史记录
+                async with AsyncSessionLocal() as db:
+                    await crud.create_fan_speed_history(db, server_id=self.server.id, speed_rpm=ipmi_speed)
+            return ipmi_speed
+            
+        except Exception as e:
+            logger.error(f"Error getting realtime fan speed for {self.server.name}: {e}")
+            return -1
+    
+    async def get_fan_speed_cached(self) -> int:
+        """
+        带缓存机制获取风扇速度数据（用于API和指标显示）。
         优先从数据库缓存获取，如果缓存过期则调用IPMI命令获取最新数据。
         :return: 整型的风扇速度值，如果获取失败返回-1。
         """
@@ -75,14 +110,10 @@ class BaseServerController(ABC):
                     return cached_speed
                 
                 # 缓存过期或不存在，从IPMI获取
-                ipmi_speed = await self._get_fan_speed_from_ipmi()
-                if ipmi_speed != -1:
-                    # 将新数据写入数据库作为新的缓存点
-                    await crud.create_fan_speed_history(db, server_id=self.server.id, speed_rpm=ipmi_speed)
-                return ipmi_speed
+                return await self.get_fan_speed_realtime()
                 
         except Exception as e:
-            print(f"Error getting fan speed with cache for {self.server.name}: {e}")
+            logger.error(f"Error getting cached fan speed for {self.server.name}: {e}")
             return -1
     
     @abstractmethod
@@ -95,10 +126,10 @@ class BaseServerController(ABC):
 
     async def get_fan_speed(self) -> int:
         """
-        获取服务器风扇的平均转速 (RPM)（使用缓存机制）。
+        获取服务器风扇的平均转速 (RPM)（实时获取）。
         :return: 整型的平均转速值。
         """
-        return await self.get_fan_speed_with_cache()
+        return await self.get_fan_speed_realtime()
 
     async def get_all_sensors(self) -> list[dict]:
         """

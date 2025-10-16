@@ -131,15 +131,13 @@ async def _server_metrics_loop(server: models.Server):
         try:
             controller = get_controller(server)
             
-            # 使用缓存机制获取温度和风扇速度
-            # 注意：这里直接使用IPMI方法，因为缓存机制已经在控制器中实现
-            temperature = await controller.get_temperature()
-            fan_speed = await controller.get_fan_speed()
+            # 使用缓存机制获取温度和风扇速度（用于指标显示）
+            temperature = await controller.get_temperature_cached()
+            fan_speed = await controller.get_fan_speed_cached()
 
-            # 由于缓存机制会自动将新数据写入数据库，这里不需要重复记录
-            # 只有在数据有效时才记录日志
+            # 记录指标日志
             if temperature != -1.0 or fan_speed != -1:
-                logger.info(f"Retrieved metrics for {server.name}: Temp={temperature}°C, Fan={fan_speed} RPM")
+                logger.info(f"Retrieved cached metrics for {server.name}: Temp={temperature}°C, Fan={fan_speed} RPM")
             
             await asyncio.sleep(30) # 指标记录间隔
 

@@ -1,8 +1,13 @@
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+# 确保数据目录存在
+data_dir = "./data"
+os.makedirs(data_dir, exist_ok=True)
+
 # 数据库文件的路径
-DATABASE_URL = "sqlite+aiosqlite:///./app.db"
+DATABASE_URL = f"sqlite+aiosqlite:///{data_dir}/app.db"
 
 # 创建异步数据库引擎
 # connect_args={"check_same_thread": False} 是 SQLite 特有的配置，

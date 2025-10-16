@@ -1,6 +1,6 @@
 <template>
   <div class="server-detail">
-    <!-- 顶部导航栏 -->
+    <!-- 顶部导航栏 - 玻璃拟态风格 -->
     <nav class="top-nav">
       <router-link to="/" class="back-link">
         <span class="back-arrow">←</span>
@@ -25,126 +25,143 @@
       <button @click="error = null" class="close-error">✕</button>
     </div>
 
-    <!-- 主要内容区域 -->
+    <!-- 主要内容区域 - 重新设计的布局 -->
     <div class="main-content">
-      <!-- 左侧：监控面板 -->
-      <div class="left-panel">
-        <!-- 实时监控卡片 -->
-        <div class="monitor-card">
+      <!-- 顶部状态区域 -->
+      <div class="status-grid">
+        <!-- 服务器状态卡片 -->
+        <div class="status-card">
           <div class="card-header">
-            <span class="card-icon">📊</span>
-            <span class="card-title">实时监控</span>
+            <span class="card-icon">🖥️</span>
+            <span class="card-title">服务器状态</span>
           </div>
-          <div class="monitor-content">
-            <div class="metric-item">
-              <div class="metric-label">CPU温度</div>
-              <div class="metric-value">{{ currentTemp }}°C</div>
+          <div class="status-content">
+            <div class="status-item">
+              <div class="status-label">IPMI主机</div>
+              <div class="status-value">{{ server.ipmi_host }}</div>
             </div>
-            <div class="metric-item">
-              <div class="metric-label">风扇转速</div>
-              <div class="metric-value">{{ currentFanSpeed }} RPM</div>
+            <div class="status-item">
+              <div class="status-label">连接状态</div>
+              <div class="status-value" :class="connectionStatus">
+                {{ connectionStatusText }}
+              </div>
             </div>
-            <div class="metric-item">
-              <div class="metric-label">控制模式</div>
-              <div class="metric-value">{{ controlModeText }}</div>
+            <div class="status-item">
+              <div class="status-label">最后更新</div>
+              <div class="status-value">{{ lastUpdateTime }}</div>
             </div>
           </div>
         </div>
 
-        <!-- 系统信息卡片 -->
-        <div class="info-card">
+        <!-- 实时监控卡片 -->
+        <div class="realtime-card">
           <div class="card-header">
-            <span class="card-icon">ℹ️</span>
-            <span class="card-title">系统信息</span>
+            <span class="card-icon">📊</span>
+            <span class="card-title">实时监控</span>
           </div>
-          <div class="info-content">
-            <div class="info-row">
-              <span class="info-label">IPMI主机:</span>
-              <span class="info-value">{{ server.ipmi_host }}</span>
+          <div class="realtime-content">
+            <div class="metric-large">
+              <div class="metric-icon">🌡️</div>
+              <div class="metric-data">
+                <div class="metric-value-large">{{ currentTemp }}°C</div>
+                <div class="metric-label">CPU温度</div>
+              </div>
             </div>
-            <div class="info-row">
-              <span class="info-label">连接状态:</span>
-              <span class="info-value">{{ connectionStatusText }}</span>
+            <div class="metric-large">
+              <div class="metric-icon">🌀</div>
+              <div class="metric-data">
+                <div class="metric-value-large">{{ currentFanSpeed }}</div>
+                <div class="metric-label">风扇转速 RPM</div>
+              </div>
             </div>
-            <div class="info-row">
-              <span class="info-label">最后更新:</span>
-              <span class="info-value">{{ lastUpdateTime }}</span>
+            <div class="metric-large">
+              <div class="metric-icon">🎛️</div>
+              <div class="metric-data">
+                <div class="metric-value-large">{{ controlModeText }}</div>
+                <div class="metric-label">控制模式</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 右侧：控制面板 -->
-      <div class="right-panel">
-        <!-- 模式选择 -->
-        <div class="control-card">
-          <div class="card-header">
-            <span class="card-icon">🎛️</span>
-            <span class="card-title">风扇控制模式</span>
-          </div>
-          <div class="mode-buttons">
-            <button 
-              @click="switchToAuto" 
-              :class="{ active: server.control_mode === 'auto' }"
-              class="mode-btn auto-mode"
-            >
-              <span class="mode-icon">🤖</span>
-              自动模式
-            </button>
-            <button 
-              @click="switchToManual" 
-              :class="{ active: server.control_mode === 'manual' }"
-              class="mode-btn manual-mode"
-            >
-              <span class="mode-icon">👋</span>
-              手动模式
-            </button>
+      <!-- 历史趋势区域 -->
+      <div class="history-section">
+        <div class="section-header">
+          <div class="section-title">
+            <span class="section-icon">📈</span>
+            <h2>历史趋势</h2>
+            <span class="section-subtitle">最近3小时温度与风扇转速变化</span>
           </div>
         </div>
+        <div class="history-chart-container">
+          <v-chart class="chart" :option="historyChartOption" autoresize />
+        </div>
+      </div>
 
-        <!-- 手动控制 -->
-        <div v-if="server.control_mode === 'manual'" class="manual-control-card">
-          <div class="card-header">
-            <span class="card-icon">⚙️</span>
-            <span class="card-title">手动控制</span>
-          </div>
-          <div class="manual-content">
-            <div class="speed-display">
-              <span class="speed-label">风扇速度</span>
-              <span class="speed-value">{{ manualSpeed }}%</span>
+      <!-- 控制区域 -->
+      <div class="control-grid">
+        <!-- 模式选择和手动控制 -->
+        <div class="control-left">
+          <div class="control-card">
+            <div class="card-header">
+              <span class="card-icon">🎛️</span>
+              <span class="card-title">控制模式</span>
             </div>
-            <div class="slider-container">
-              <input 
-                type="range" 
-                min="10" 
-                max="100" 
-                v-model="manualSpeed"
-                class="speed-slider"
-                @input="updateManualSpeed"
-              >
-              <div class="slider-labels">
-                <span>10%</span>
-                <span>50%</span>
-                <span>100%</span>
+            <div class="mode-buttons">
+              <button @click="switchToAuto" :class="{ active: server.control_mode === 'auto' }"
+                class="mode-btn auto-mode">
+                <span class="mode-icon">🤖</span>
+                自动模式
+              </button>
+              <button @click="switchToManual" :class="{ active: server.control_mode === 'manual' }"
+                class="mode-btn manual-mode">
+                <span class="mode-icon">👋</span>
+                手动模式
+              </button>
+            </div>
+          </div>
+
+          <!-- 手动控制 -->
+          <div v-if="server.control_mode === 'manual'" class="manual-control-card">
+            <div class="card-header">
+              <span class="card-icon">⚙️</span>
+              <span class="card-title">手动控制</span>
+            </div>
+            <div class="manual-content">
+              <div class="speed-display">
+                <span class="speed-label">风扇速度</span>
+                <span class="speed-value">{{ manualSpeed }}%</span>
               </div>
+              <div class="slider-container">
+                <input type="range" min="10" max="100" v-model="manualSpeed" class="speed-slider"
+                  @input="updateManualSpeed">
+                <div class="slider-labels">
+                  <span>10%</span>
+                  <span>50%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+              <button @click="applyManualSpeed" class="apply-btn">
+                应用设置
+              </button>
             </div>
-            <button @click="applyManualSpeed" class="apply-btn">
-              应用设置
-            </button>
           </div>
         </div>
 
-        <!-- 自动控制 -->
-        <div v-else class="auto-control-card">
-          <div class="card-header">
-            <span class="card-icon">📈</span>
-            <span class="card-title">温控曲线</span>
+        <!-- 温控曲线和控制点 -->
+        <div class="control-right" v-if="server.control_mode === 'auto'">
+          <div class="curve-card">
+            <div class="card-header">
+              <span class="card-icon">📊</span>
+              <span class="card-title">温控曲线</span>
+            </div>
+            <div class="curve-chart-container">
+              <v-chart class="chart" :option="chartOption" autoresize />
+            </div>
           </div>
-          <div class="curve-chart">
-            <v-chart class="chart" :option="chartOption" autoresize />
-          </div>
-          
-          <div class="curve-controls">
+
+          <div class="points-card">
             <div class="card-header">
               <span class="card-icon">🔧</span>
               <span class="card-title">控制点设置</span>
@@ -153,14 +170,7 @@
               <div class="control-group">
                 <label class="control-label">控制点数量</label>
                 <div class="slider-container">
-                  <input
-                    type="range"
-                    min="3"
-                    max="9"
-                    v-model="pointCount"
-                    class="point-slider"
-                    @input="updatePointCount"
-                  >
+                  <input type="range" min="3" max="9" v-model="pointCount" class="point-slider" @input="updatePointCount">
                   <div class="slider-info">
                     <span class="slider-value">{{ pointCount }}</span>
                     <span class="slider-label">个控制点</span>
@@ -168,41 +178,27 @@
                 </div>
               </div>
             </div>
-            <div class="points-grid">
-              <div v-for="(point, index) in fanCurve" :key="index" class="point-item">
-                <div class="point-header">
-                  <span class="point-number">{{ index + 1 }}</span>
-                  <span class="point-label">控制点</span>
+            <div class="points-grid-compact">
+              <div v-for="(point, index) in fanCurve" :key="index" class="point-item-compact">
+                <div class="point-header-compact">
+                  <span class="point-number-compact">{{ index + 1 }}</span>
                 </div>
-                <div class="point-inputs">
-                  <div class="input-group">
+                <div class="point-inputs-compact">
+                  <div class="input-group-compact">
                     <label>温度</label>
-                    <input
-                      type="number"
-                      v-model="point.temp"
-                      min="0"
-                      max="100"
-                      @change="updateCurve"
-                      class="temp-input"
-                    >
+                    <input type="number" v-model="point.temp" min="0" max="100" @change="updateCurve" class="temp-input-compact">
                     <span class="unit">°C</span>
                   </div>
-                  <div class="input-group">
+                  <div class="input-group-compact">
                     <label>风扇</label>
-                    <input
-                      type="number"
-                      v-model="point.speed"
-                      min="0"
-                      max="100"
-                      @change="updateCurve"
-                      class="speed-input"
-                    >
+                    <input type="number" v-model="point.speed" min="0" max="100" @change="updateCurve"
+                      class="speed-input-compact">
                     <span class="unit">%</span>
                   </div>
                 </div>
               </div>
             </div>
-            <button @click="saveCurve" class="save-btn">
+            <button @click="saveCurve" class="save-btn-compact">
               保存曲线
             </button>
           </div>
@@ -244,7 +240,7 @@ export default {
   setup() {
     const route = useRoute();
     const serverId = route.params.id;
-    
+
     // 数据状态
     const server = ref({
       name: 'Loading...',
@@ -266,6 +262,8 @@ export default {
     const pointCount = ref(6);
     const error = ref(null);
     const lastUpdateTime = ref('从未更新');
+    const temperatureHistory = ref([]);
+    const fanSpeedHistory = ref([]);
     
     let pollInterval;
     let updateTimer;
@@ -344,6 +342,141 @@ export default {
       ],
     }));
 
+    const historyChartOption = computed(() => {
+      // 准备历史数据，按时间升序排列
+      const sortedTempData = temperatureHistory.value.sort((a, b) => 
+        new Date(a.timestamp) - new Date(b.timestamp)
+      );
+      const sortedFanData = fanSpeedHistory.value.sort((a, b) => 
+        new Date(a.timestamp) - new Date(b.timestamp)
+      );
+      
+      const tempData = sortedTempData.map(item => [
+        new Date(item.timestamp).toLocaleString('zh-CN', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        item.temperature
+      ]);
+      
+      const fanData = sortedFanData.map(item => [
+        new Date(item.timestamp).toLocaleString('zh-CN', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        item.average_speed_rpm
+      ]);
+
+      return {
+        backgroundColor: 'transparent',
+        grid: {
+          left: '3%',
+          right: '4%',
+          bottom: '3%',
+          containLabel: true,
+        },
+        xAxis: {
+          type: 'category',
+          name: '时间',
+          axisLine: {
+            lineStyle: {
+              color: '#a0aec0',
+            },
+          },
+          nameTextStyle: {
+            color: '#a0aec0',
+          },
+          axisLabel: {
+            rotate: 45,
+            interval: Math.max(Math.floor(tempData.length / 10), 1)
+          }
+        },
+        yAxis: [
+          {
+            type: 'value',
+            name: '温度 (°C)',
+            position: 'left',
+            axisLine: {
+              lineStyle: {
+                color: '#ff6b6b',
+              },
+            },
+            nameTextStyle: {
+              color: '#ff6b6b',
+            },
+            axisLabel: {
+              color: '#ff6b6b',
+            },
+          },
+          {
+            type: 'value',
+            name: '风扇转速 (RPM)',
+            position: 'right',
+            axisLine: {
+              lineStyle: {
+                color: '#4ade80',
+              },
+            },
+            nameTextStyle: {
+              color: '#4ade80',
+            },
+            axisLabel: {
+              color: '#4ade80',
+            },
+          }
+        ],
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: {
+            type: 'cross'
+          },
+          formatter: function (params) {
+            let result = params[0].axisValue + '<br/>';
+            params.forEach(param => {
+              result += param.marker + param.seriesName + ': ' + param.value + '<br/>';
+            });
+            return result;
+          }
+        },
+        legend: {
+          data: ['温度', '风扇转速'],
+          textStyle: {
+            color: '#a0aec0'
+          }
+        },
+        series: [
+          {
+            name: '温度',
+            data: tempData,
+            type: 'line',
+            smooth: true,
+            symbol: 'none',
+            lineStyle: {
+              color: '#ff6b6b',
+              width: 2,
+            },
+            yAxisIndex: 0,
+          },
+          {
+            name: '风扇转速',
+            data: fanData,
+            type: 'line',
+            smooth: true,
+            symbol: 'none',
+            lineStyle: {
+              color: '#4ade80',
+              width: 2,
+            },
+            yAxisIndex: 1,
+          },
+        ],
+      };
+    });
+
     // 方法
     const updateTime = () => {
       const now = new Date();
@@ -385,6 +518,9 @@ export default {
         
         // 获取风扇配置
         await fetchFanConfig();
+        
+        // 获取历史数据
+        await fetchHistoryData();
         
         updateTime();
         
@@ -433,6 +569,24 @@ export default {
       } catch (e) {
         console.error('获取风扇配置失败:', e);
         showNotification('获取风扇配置失败', 'warning');
+      }
+    };
+
+    const fetchHistoryData = async () => {
+      try {
+        // 获取最近温度历史
+        const tempRes = await fetch(`/api/v1/history/${serverId}/temperature/recent?limit=540`);
+        if (tempRes.ok) {
+          temperatureHistory.value = await tempRes.json();
+        }
+
+        // 获取最近风扇转速历史
+        const fanRes = await fetch(`/api/v1/history/${serverId}/fan-speed/recent?limit=540`);
+        if (fanRes.ok) {
+          fanSpeedHistory.value = await fanRes.json();
+        }
+      } catch (e) {
+        console.error('获取历史数据失败:', e);
       }
     };
 
@@ -585,6 +739,7 @@ export default {
       connectionStatus,
       connectionStatusText,
       chartOption,
+      historyChartOption,
       switchToAuto,
       switchToManual,
       applyManualSpeed,
@@ -593,58 +748,21 @@ export default {
       saveCurve,
       refreshData,
       pointCount,
-      updatePointCount
+      updatePointCount,
+      fetchHistoryData
     };
   }
 };
 </script>
 
 <style scoped>
-/* 滚动条样式 - iOS风格 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-  border: none;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* 右侧面板滚动条 */
-.right-panel {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
-
-.right-panel::-webkit-scrollbar {
-  width: 4px;
-}
-
-.right-panel::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-}
-
+/* 玻璃拟态风格基础样式 */
 .server-detail {
-  height: 100vh;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
   color: #ffffff;
   padding: 20px;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
 /* 顶部导航栏 */
@@ -652,101 +770,125 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .back-link {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #e94560;
+  color: #64ffda;
   text-decoration: none;
   font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.back-link:hover {
+  color: #4fc3f7;
+  transform: translateX(-2px);
 }
 
 .server-title h1 {
   margin: 0;
   font-size: 1.8em;
   color: #ffffff;
+  font-weight: 600;
 }
 
 .model-badge {
-  background: linear-gradient(45deg, #e94560, #ff6b6b);
-  color: white;
-  padding: 4px 12px;
+  background: linear-gradient(45deg, #64ffda, #4fc3f7);
+  color: #0f0f23;
+  padding: 6px 14px;
   border-radius: 20px;
   font-size: 0.9em;
-  font-weight: 500;
-  margin-left: 10px;
+  font-weight: 600;
+  margin-left: 12px;
 }
 
 .refresh-btn {
-  background: rgba(233, 69, 96, 0.2);
-  color: #e94560;
-  border: 1px solid #e94560;
-  padding: 8px 16px;
-  border-radius: 8px;
+  background: rgba(100, 255, 218, 0.15);
+  color: #64ffda;
+  border: 1px solid rgba(100, 255, 218, 0.3);
+  padding: 10px 18px;
+  border-radius: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.refresh-btn:hover {
+  background: rgba(100, 255, 218, 0.25);
+  transform: translateY(-1px);
 }
 
 /* 错误横幅 */
 .error-banner {
-  background: rgba(255, 0, 0, 0.2);
-  color: #ff6b6b;
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+  background: rgba(255, 59, 48, 0.15);
+  color: #ff3b30;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(255, 0, 0, 0.3);
+  gap: 12px;
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  backdrop-filter: blur(10px);
 }
 
 .close-error {
   background: none;
   border: none;
-  color: #ff6b6b;
+  color: #ff3b30;
   font-size: 1.2em;
   cursor: pointer;
   margin-left: auto;
+  padding: 4px;
 }
 
 /* 主要内容区域 */
 .main-content {
-  display: grid;
-  grid-template-columns: 400px 1fr;
-  gap: 20px;
-  height: calc(100vh - 120px);
-}
-
-/* 左侧面板 */
-.left-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
-/* 卡片基础样式 */
-.monitor-card, .info-card, .control-card, .manual-control-card, .auto-control-card {
+/* 状态网格 */
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 24px;
+}
+
+/* 卡片基础样式 - 玻璃拟态 */
+.status-card, .realtime-card, .control-card, .manual-control-card, .curve-card, .points-card {
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  padding: 20px;
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 24px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.status-card:hover, .realtime-card:hover, .control-card:hover, .manual-control-card:hover, 
+.curve-card:hover, .points-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 20px;
 }
 
@@ -756,91 +898,174 @@ export default {
 
 .card-title {
   color: #ffffff;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 1.2em;
 }
 
-/* 监控卡片 */
-.monitor-content {
+/* 状态卡片内容 */
+.status-content {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 16px;
 }
 
-.metric-item {
+.status-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
+}
+
+.status-label {
+  color: #a0aec0;
+  font-weight: 500;
+}
+
+.status-value {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.status-value.connected {
+  color: #4ade80;
+}
+
+.status-value.disconnected {
+  color: #ff6b6b;
+}
+
+/* 实时监控卡片 */
+.realtime-content {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.metric-large {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+}
+
+.metric-icon {
+  font-size: 2em;
+}
+
+.metric-data {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-value-large {
+  color: #64ffda;
+  font-size: 1.8em;
+  font-weight: 700;
 }
 
 .metric-label {
   color: #a0aec0;
-  font-weight: 500;
+  font-size: 0.9em;
 }
 
-.metric-value {
-  color: #4ade80;
-  font-weight: bold;
-  font-size: 1.1em;
+/* 历史趋势区域 */
+.history-section {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
-/* 信息卡片 */
-.info-content {
+.section-header {
+  margin-bottom: 20px;
+}
+
+.section-title {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
-.info-label {
-  color: #a0aec0;
-}
-
-.info-value {
+.section-title h2 {
   color: #ffffff;
-  font-weight: 500;
+  font-size: 1.4em;
+  font-weight: 600;
+  margin: 0;
 }
 
-/* 右侧面板 */
-.right-panel {
+.section-subtitle {
+  color: #a0aec0;
+  font-size: 0.9em;
+  margin-left: 8px;
+}
+
+.section-icon {
+  font-size: 1.5em;
+}
+
+.history-chart-container {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  height: 400px;
+}
+
+/* 控制网格 */
+.control-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 24px;
+}
+
+.control-left {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  overflow-y: auto;
+  gap: 24px;
+}
+
+.control-right {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 /* 模式按钮 */
 .mode-buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 15px;
+  gap: 16px;
 }
 
 .mode-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #ffffff;
-  padding: 15px;
-  border-radius: 8px;
+  padding: 16px;
+  border-radius: 12px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
 }
 
 .mode-btn.active {
-  background: rgba(233, 69, 96, 0.3);
-  border-color: #e94560;
+  background: rgba(100, 255, 218, 0.2);
+  border-color: #64ffda;
+  box-shadow: 0 4px 16px rgba(100, 255, 218, 0.2);
 }
 
 .mode-icon {
@@ -858,8 +1083,8 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.05);
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
 }
 
@@ -869,9 +1094,9 @@ export default {
 }
 
 .speed-value {
-  color: #ffffff;
+  color: #64ffda;
   font-size: 1.5em;
-  font-weight: bold;
+  font-weight: 700;
 }
 
 .slider-container {
@@ -891,7 +1116,7 @@ export default {
   -webkit-appearance: none;
   width: 20px;
   height: 20px;
-  background: #e94560;
+  background: #64ffda;
   border-radius: 50%;
   cursor: pointer;
 }
@@ -899,99 +1124,153 @@ export default {
 .slider-labels {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 8px;
   color: #a0aec0;
   font-size: 0.8em;
 }
 
 .apply-btn {
-  background: linear-gradient(45deg, #e94560, #ff6b6b);
-  color: white;
+  background: linear-gradient(45deg, #64ffda, #4fc3f7);
+  color: #0f0f23;
   padding: 12px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  font-weight: 600;
+  font-size: 1em;
+  transition: all 0.3s ease;
+}
+
+.apply-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(100, 255, 218, 0.3);
+}
+
+/* 温控曲线 */
+.curve-chart-container {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  height: 300px;
+}
+
+/* 控制点设置 */
+.point-count-control {
+  margin-bottom: 20px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-label {
+  color: #a0aec0;
   font-weight: 500;
+}
+
+.point-slider {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  margin: 12px 0;
+}
+
+.point-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #64ffda;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.slider-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.slider-value {
+  background: #64ffda;
+  color: #0f0f23;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 600;
   font-size: 1em;
 }
 
-/* 自动控制 */
-.curve-chart {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  padding: 10px;
-  height: 300px;
-  margin-bottom: 20px;
+.slider-label {
+  color: #a0aec0;
+  font-size: 0.9em;
 }
 
-.chart {
-  height: 100%;
-  width: 100%;
-}
-
-.points-grid {
+/* 紧凑的控制点网格 */
+.points-grid-compact {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
   margin-bottom: 20px;
 }
 
-.point-item {
-  background: rgba(255, 255, 255, 0.05);
-  padding: 15px;
+.point-item-compact {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.point-header {
+.point-header-compact {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  justify-content: center;
+  margin-bottom: 8px;
 }
 
-.point-number {
-  background: #e94560;
-  color: white;
-  width: 25px;
-  height: 25px;
+.point-number-compact {
+  background: #64ffda;
+  color: #0f0f23;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: 600;
+  font-size: 0.8em;
 }
 
-.point-label {
-  color: #ffffff;
-  font-weight: 500;
-}
-
-.point-inputs {
-  display: flex;
-  gap: 10px;
-}
-
-.input-group {
+.point-inputs-compact {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
 }
 
-.input-group label {
+.input-group-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-group-compact label {
   color: #a0aec0;
   font-size: 0.8em;
 }
 
-.temp-input, .speed-input {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+.temp-input-compact, .speed-input-compact {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: white;
-  padding: 8px;
-  border-radius: 4px;
-  width: 60px;
+  padding: 6px;
+  border-radius: 6px;
+  width: 100%;
   text-align: center;
+  font-size: 0.9em;
 }
 
 .unit {
@@ -1000,103 +1279,56 @@ export default {
   margin-left: 4px;
 }
 
-.save-btn {
-  background: linear-gradient(45deg, #38a169, #4ade80);
+.save-btn-compact {
+  background: linear-gradient(45deg, #4ade80, #38a169);
   color: white;
-  padding: 12px;
+  padding: 10px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 1em;
-}
-
-/* 控制点滑块样式 */
-.point-slider {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-  outline: none;
-  -webkit-appearance: none;
-  margin: 15px 0;
-}
-
-.point-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 24px;
-  height: 24px;
-  background: linear-gradient(45deg, #e94560, #ff6b6b);
-  border-radius: 50%;
-  cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
-}
-
-.point-slider::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
-  background: linear-gradient(45deg, #e94560, #ff6b6b);
-  border-radius: 50%;
-  cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
-}
-
-.slider-info {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.slider-value {
-  background: linear-gradient(45deg, #e94560, #ff6b6b);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-weight: bold;
-  font-size: 1.1em;
-}
-
-.slider-label {
-  color: #a0aec0;
+  font-weight: 600;
   font-size: 0.9em;
+  transition: all 0.3s ease;
+}
+
+.save-btn-compact:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(74, 222, 128, 0.3);
+}
+
+/* 图表通用样式 */
+.chart {
+  height: 100%;
+  width: 100%;
 }
 
 /* 响应式设计 */
-@media (max-width: 1024px) {
-  .main-content {
+@media (max-width: 1200px) {
+  .status-grid {
     grid-template-columns: 1fr;
-    height: auto;
   }
   
-  .left-panel {
-    order: 2;
-  }
-  
-  .right-panel {
-    order: 1;
-  }
-  
-  .points-grid {
+  .control-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
-  .top-nav {
-    flex-direction: column;
-    gap: 15px;
+  .realtime-content {
+    grid-template-columns: 1fr;
   }
   
   .mode-buttons {
     grid-template-columns: 1fr;
   }
   
-  .point-inputs {
+  .points-grid-compact {
+    grid-template-columns: 1fr;
+  }
+  
+  .top-nav {
     flex-direction: column;
+    gap: 16px;
   }
 }
 </style>

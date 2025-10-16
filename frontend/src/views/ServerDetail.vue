@@ -343,33 +343,24 @@ export default {
     }));
 
     const historyChartOption = computed(() => {
-      // 准备历史数据，按时间升序排列
-      const sortedTempData = temperatureHistory.value.sort((a, b) => 
-        new Date(a.timestamp) - new Date(b.timestamp)
-      );
-      const sortedFanData = fanSpeedHistory.value.sort((a, b) => 
-        new Date(a.timestamp) - new Date(b.timestamp)
-      );
-      
-      const tempData = sortedTempData.map(item => [
-        new Date(item.timestamp).toLocaleString('zh-CN', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-        item.temperature
-      ]);
-      
-      const fanData = sortedFanData.map(item => [
-        new Date(item.timestamp).toLocaleString('zh-CN', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-        item.average_speed_rpm
-      ]);
+      // Helper function to deduplicate and format data
+      const processHistoryData = (historyArray, valueField) => {
+        if (!historyArray || historyArray.length === 0) return [];
+        
+        // Use a map to store the latest value for each unique timestamp (ISO string)
+        const dataMap = new Map();
+        historyArray.forEach(item => {
+          dataMap.set(new Date(item.timestamp).toISOString(), item[valueField]);
+        });
+        
+        // Convert map back to array for ECharts, and sort by time
+        return Array.from(dataMap.entries())
+          .map(([timestamp, value]) => [timestamp, value])
+          .sort((a, b) => new Date(a[0]) - new Date(b[0]));
+      };
+
+      const tempData = processHistoryData(temperatureHistory.value, 'temperature');
+      const fanData = processHistoryData(fanSpeedHistory.value, 'average_speed_rpm');
 
       return {
         backgroundColor: 'transparent',
@@ -380,7 +371,7 @@ export default {
           containLabel: true,
         },
         xAxis: {
-          type: 'category',
+          type: 'time',
           name: '时间',
           axisLine: {
             lineStyle: {
@@ -392,7 +383,7 @@ export default {
           },
           axisLabel: {
             rotate: 45,
-            interval: Math.max(Math.floor(tempData.length / 10), 1)
+            formatter: '{HH}:{mm}', // Format time on the axis
           }
         },
         yAxis: [
@@ -435,9 +426,20 @@ export default {
             type: 'cross'
           },
           formatter: function (params) {
-            let result = params[0].axisValue + '<br/>';
+            if (!params || params.length === 0) return '';
+            const time = new Date(params[0].value[0]).toLocaleString('zh-CN', {
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            });
+            let result = time + '<br/>';
             params.forEach(param => {
-              result += param.marker + param.seriesName + ': ' + param.value + '<br/>';
+              const value = param.value[1];
+              if (value !== null && value !== undefined) {
+                result += `${param.marker}${param.seriesName}: ${value.toFixed(2)}<br/>`;
+              }
             });
             return result;
           }

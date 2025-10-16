@@ -125,19 +125,25 @@ async def stop_server_control_loop(server_id: int):
 # --- Metrics Recording Logic ---
 
 async def _server_metrics_loop(server: models.Server):
-    """单个服务器的指标记录循环（使用实时数据更新缓存）"""
+    """单个服务器的指标记录循环（原子化获取和存储数据）"""
     logger.info(f"Starting metrics loop for server: {server.name} (ID: {server.id})")
     while True:
         try:
             controller = get_controller(server)
             
-            # 使用实时数据获取温度和风扇速度（用于更新数据库缓存）
-            temperature = await controller.get_temperature_realtime()
-            fan_speed = await controller.get_fan_speed_realtime()
-
-            # 记录实时指标日志（数据已经通过实时方法写入数据库）
+            # 原子化获取温度和风扇速度数据
+            temperature = await controller._get_temperature_from_ipmi()
+            fan_speed = await controller._get_fan_speed_from_ipmi()
+            
             if temperature != -1.0 or fan_speed != -1:
-                logger.info(f"Recorded realtime metrics for {server.name}: Temp={temperature}°C, Fan={fan_speed} RPM")
+                # 一次性将两个数据写入数据库
+                async with AsyncSessionLocal() as db:
+                    if temperature != -1.0:
+                        await crud.create_temperature_history(db, server_id=server.id, temperature=temperature)
+                    if fan_speed != -1:
+                        await crud.create_fan_speed_history(db, server_id=server.id, speed_rpm=fan_speed)
+                
+                logger.info(f"Recorded metrics for {server.name}: Temp={temperature}°C, Fan={fan_speed} RPM")
             
             await asyncio.sleep(30) # 指标记录间隔
 

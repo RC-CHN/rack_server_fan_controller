@@ -27,16 +27,11 @@ class BaseServerController(ABC):
         """
         实时获取温度数据（用于风扇控制）。
         始终执行IPMI命令获取最新数据，确保控制的及时性。
+        注意：此方法不写入数据库，数据存储由指标记录循环负责。
         :return: 浮点型的温度值，如果获取失败返回-1.0。
         """
         try:
-            ipmi_temp = await self._get_temperature_from_ipmi()
-            if ipmi_temp != -1.0:
-                # 将新数据写入数据库作为历史记录
-                async with AsyncSessionLocal() as db:
-                    await crud.create_temperature_history(db, server_id=self.server.id, temperature=ipmi_temp)
-            return ipmi_temp
-            
+            return await self._get_temperature_from_ipmi()
         except Exception as e:
             logger.error(f"Error getting realtime temperature for {self.server.name}: {e}")
             return -1.0
@@ -45,17 +40,18 @@ class BaseServerController(ABC):
         """
         带缓存机制获取温度数据（用于API和指标显示）。
         优先从数据库缓存获取，如果缓存过期则调用IPMI命令获取最新数据。
+        注意：此方法不写入数据库，依赖指标记录循环定期更新数据。
         :return: 浮点型的温度值，如果获取失败返回-1.0。
         """
         try:
             async with AsyncSessionLocal() as db:
-                # 尝试从缓存获取
+                # 尝试从缓存获取（由指标记录循环定期更新）
                 cached_temp = await crud_cache.get_latest_temperature(db, self.server.id, self._temp_cache_age)
                 if cached_temp is not None:
                     return cached_temp
                 
-                # 缓存过期或不存在，从IPMI获取
-                return await self.get_temperature_realtime()
+                # 缓存过期或不存在，从IPMI获取（不存储到数据库）
+                return await self._get_temperature_from_ipmi()
                 
         except Exception as e:
             logger.error(f"Error getting cached temperature for {self.server.name}: {e}")
@@ -82,16 +78,11 @@ class BaseServerController(ABC):
         """
         实时获取风扇速度数据（用于风扇控制）。
         始终执行IPMI命令获取最新数据，确保控制的及时性。
+        注意：此方法不写入数据库，数据存储由指标记录循环负责。
         :return: 整型的风扇速度值，如果获取失败返回-1。
         """
         try:
-            ipmi_speed = await self._get_fan_speed_from_ipmi()
-            if ipmi_speed != -1:
-                # 将新数据写入数据库作为历史记录
-                async with AsyncSessionLocal() as db:
-                    await crud.create_fan_speed_history(db, server_id=self.server.id, speed_rpm=ipmi_speed)
-            return ipmi_speed
-            
+            return await self._get_fan_speed_from_ipmi()
         except Exception as e:
             logger.error(f"Error getting realtime fan speed for {self.server.name}: {e}")
             return -1
@@ -100,17 +91,18 @@ class BaseServerController(ABC):
         """
         带缓存机制获取风扇速度数据（用于API和指标显示）。
         优先从数据库缓存获取，如果缓存过期则调用IPMI命令获取最新数据。
+        注意：此方法不写入数据库，依赖指标记录循环定期更新数据。
         :return: 整型的风扇速度值，如果获取失败返回-1。
         """
         try:
             async with AsyncSessionLocal() as db:
-                # 尝试从缓存获取
+                # 尝试从缓存获取（由指标记录循环定期更新）
                 cached_speed = await crud_cache.get_latest_fan_speed(db, self.server.id, self._fan_cache_age)
                 if cached_speed is not None:
                     return cached_speed
                 
-                # 缓存过期或不存在，从IPMI获取
-                return await self.get_fan_speed_realtime()
+                # 缓存过期或不存在，从IPMI获取（不存储到数据库）
+                return await self._get_fan_speed_from_ipmi()
                 
         except Exception as e:
             logger.error(f"Error getting cached fan speed for {self.server.name}: {e}")

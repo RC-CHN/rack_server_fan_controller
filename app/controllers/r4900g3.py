@@ -69,11 +69,51 @@ class R4900G3Controller(BaseServerController):
 
     async def _get_fan_speed_from_ipmi(self) -> int:
         """
-        R4900 G3 无法直接读取风扇转速，因此返回一个占位符。
-        控制逻辑是只写的。
+        获取R4900 G3风扇转速（所有风扇的平均RPM）
+        使用批量获取：ipmitool sensor get FAN1_Speed FAN2_Speed ... FAN6_Speed
         """
-        logger.debug("get_fan_speed for R4900G3 is a placeholder as it's not directly readable.")
-        return -1
+        fan_sensors = ["FAN1_Speed", "FAN2_Speed", "FAN3_Speed",
+                      "FAN4_Speed", "FAN5_Speed", "FAN6_Speed"]
+        
+        # 批量获取所有风扇传感器数据
+        cmd_args = ['sensor', 'get'] + fan_sensors
+        batch_output = await self._run_ipmi_command(*cmd_args)
+        
+        if not batch_output:
+            logger.warning(f"批量获取风扇转速失败 for {self.server.name}")
+            return -1
+        
+        total_rpm = 0
+        valid_fans = 0
+        
+        # 解析批量输出中的每个风扇转速
+        for fan_sensor in fan_sensors:
+            # 查找每个风扇传感器的输出段
+            # 格式: "Sensor Reading        : 2600 (+/- 0) RPM"
+            sensor_pattern = f"{fan_sensor}.*?Sensor Reading\\s*:\\s*([\\d\\.-]+)"
+            match = re.search(sensor_pattern, batch_output, re.DOTALL)
+            
+            if match:
+                try:
+                    rpm_value = float(match.group(1))
+                    if rpm_value > 0:  # 确保是有效的RPM值
+                        total_rpm += rpm_value
+                        valid_fans += 1
+                        logger.debug(f"{self.server.name} {fan_sensor}: {rpm_value} RPM")
+                    else:
+                        logger.debug(f"{self.server.name} {fan_sensor}: 无效RPM值 {rpm_value}")
+                except ValueError:
+                    logger.warning(f"无法解析风扇转速值 '{match.group(1)}' 从传感器 {fan_sensor}")
+            else:
+                logger.debug(f"{self.server.name} {fan_sensor}: 未找到传感器数据")
+        
+        if valid_fans > 0:
+            average_rpm = int(total_rpm / valid_fans)  # 取整数
+            logger.info(f"{self.server.name} 风扇平均转速: {average_rpm} RPM (基于{valid_fans}个有效风扇)")
+            return average_rpm
+        else:
+            logger.warning(f"无法获取{self.server.name}的任何风扇转速")
+            return -1
 
     async def set_fan_speed(self, speed: int):
         """统一设置所有风扇的转速百分比"""

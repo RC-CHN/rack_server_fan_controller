@@ -58,11 +58,55 @@ class R730Controller(BaseServerController):
         return -1.0
 
     async def _get_fan_speed_from_ipmi(self) -> int:
-        # R730 的 ipmitool sensor 输出中通常不直接显示风扇RPM，
-        # 而是以百分比显示。这里我们先返回一个占位符。
-        # 实际实现可能需要解析 'Fan' 相关的行。
-        logger.warning("get_fan_speed for R730 is not fully implemented and returns a placeholder.")
-        return -1
+        """
+        获取R730风扇转速（RPM）
+        使用批量获取所有6个风扇传感器，返回平均转速
+        """
+        fan_sensors = ['Fan1', 'Fan2', 'Fan3', 'Fan4', 'Fan5', 'Fan6']
+        
+        try:
+            # 批量获取所有风扇传感器
+            sensor_data = await self._run_ipmi_command('sensor', 'get', *fan_sensors)
+            if not sensor_data:
+                logger.warning(f"Failed to get fan speed data for server {self.server.name}")
+                return -1
+            
+            # 解析风扇转速
+            fan_speeds = []
+            current_sensor = None
+            
+            for line in sensor_data.splitlines():
+                line = line.strip()
+                
+                # 查找传感器ID行
+                if line.startswith('Sensor ID') and 'Fan' in line:
+                    # 提取传感器名称，如 "Fan1 (0x30)"
+                    sensor_match = re.search(r'Fan\d+', line)
+                    if sensor_match:
+                        current_sensor = sensor_match.group(0)
+                
+                # 查找传感器读数行
+                elif line.startswith('Sensor Reading') and current_sensor:
+                    # 提取RPM值，格式如 "3720 (+/- 120) RPM"
+                    rpm_match = re.search(r'(\d+)\s*\(\+/-\s*\d+\)\s*RPM', line)
+                    if rpm_match:
+                        rpm = int(rpm_match.group(1))
+                        fan_speeds.append(rpm)
+                        logger.debug(f"Found fan speed for {current_sensor}: {rpm} RPM")
+                        current_sensor = None  # 重置当前传感器
+            
+            if fan_speeds:
+                # 计算平均转速并取整数
+                avg_speed = int(sum(fan_speeds) / len(fan_speeds))
+                logger.info(f"Retrieved fan speeds for {self.server.name}: {fan_speeds}, average: {avg_speed} RPM")
+                return avg_speed
+            else:
+                logger.warning(f"No valid fan speed readings found for server {self.server.name}")
+                return -1
+                
+        except Exception as e:
+            logger.error(f"Error getting fan speed for server {self.server.name}: {e}", exc_info=True)
+            return -1
 
     async def set_fan_speed(self, speed: int):
         if 0 <= speed <= 100:

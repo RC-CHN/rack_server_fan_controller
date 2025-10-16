@@ -10,6 +10,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from .database import Base
+import pytz
 
 
 class Server(Base):
@@ -39,13 +40,18 @@ class FanCurve(Base):
     server = relationship("Server", back_populates="fan_curves")
 
 
+def get_local_time():
+    """获取本地时间（上海时区）"""
+    shanghai_tz = pytz.timezone('Asia/Shanghai')
+    return datetime.datetime.now(shanghai_tz)
+
 class TemperatureHistory(Base):
     __tablename__ = "temperature_history"
 
     id = Column(Integer, primary_key=True, index=True)
     server_id = Column(Integer, ForeignKey("servers.id"), nullable=False)
     temperature = Column(Float, nullable=False)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=get_local_time, nullable=False)
 
     server = relationship("Server", back_populates="temp_history")
 
@@ -56,6 +62,6 @@ class FanSpeedHistory(Base):
     id = Column(Integer, primary_key=True, index=True)
     server_id = Column(Integer, ForeignKey("servers.id"), nullable=False)
     average_speed_rpm = Column(Integer, nullable=False)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=get_local_time, nullable=False)
 
     server = relationship("Server", back_populates="fan_speed_history")

@@ -149,6 +149,25 @@
               <span class="card-icon">🔧</span>
               <span class="card-title">控制点设置</span>
             </div>
+            <div class="point-count-control">
+              <div class="control-group">
+                <label class="control-label">控制点数量</label>
+                <div class="slider-container">
+                  <input
+                    type="range"
+                    min="3"
+                    max="9"
+                    v-model="pointCount"
+                    class="point-slider"
+                    @input="updatePointCount"
+                  >
+                  <div class="slider-info">
+                    <span class="slider-value">{{ pointCount }}</span>
+                    <span class="slider-label">个控制点</span>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="points-grid">
               <div v-for="(point, index) in fanCurve" :key="index" class="point-item">
                 <div class="point-header">
@@ -196,6 +215,7 @@
 <script>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { ElNotification } from 'element-plus';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart } from 'echarts/charts';
@@ -243,6 +263,7 @@ export default {
       { temp: 70, speed: 80 },
       { temp: 80, speed: 100 }
     ]);
+    const pointCount = ref(6);
     const error = ref(null);
     const lastUpdateTime = ref('从未更新');
     
@@ -329,6 +350,24 @@ export default {
       lastUpdateTime.value = now.toLocaleTimeString();
     };
 
+    const showNotification = (message, type = 'success', title = '') => {
+      const icons = {
+        success: '✅',
+        warning: '⚠️',
+        error: '❌',
+        info: 'ℹ️'
+      };
+      
+      ElNotification({
+        title: title || (type === 'success' ? '成功' : type === 'error' ? '错误' : '提示'),
+        message: message,
+        type: type,
+        icon: icons[type],
+        duration: 3000,
+        position: 'top-right'
+      });
+    };
+
     const fetchServerData = async () => {
       try {
         // 获取服务器基本信息
@@ -336,6 +375,7 @@ export default {
         if (serverRes.ok) {
           server.value = await serverRes.json();
           manualSpeed.value = server.value.manual_fan_speed || 50;
+          showNotification('服务器信息加载成功', 'success');
         } else {
           throw new Error('获取服务器信息失败');
         }
@@ -350,6 +390,7 @@ export default {
         
       } catch (e) {
         error.value = e.message;
+        showNotification(e.message, 'error');
       }
     };
 
@@ -383,10 +424,15 @@ export default {
           const config = await configRes.json();
           if (config.curve && config.curve.points) {
             fanCurve.value = config.curve.points;
+            // 同步更新控制点数量
+            pointCount.value = config.curve.points.length;
           }
+        } else {
+          throw new Error('获取风扇配置失败');
         }
       } catch (e) {
         console.error('获取风扇配置失败:', e);
+        showNotification('获取风扇配置失败', 'warning');
       }
     };
 
@@ -401,11 +447,13 @@ export default {
         if (response.ok) {
           server.value.control_mode = 'auto';
           error.value = null;
+          showNotification('已切换到自动模式', 'success');
         } else {
           throw new Error('切换到自动模式失败');
         }
       } catch (e) {
         error.value = e.message;
+        showNotification(e.message, 'error');
       }
     };
 
@@ -420,11 +468,13 @@ export default {
         if (response.ok) {
           server.value.control_mode = 'manual';
           error.value = null;
+          showNotification('已切换到手动模式', 'success');
         } else {
           throw new Error('切换到手动模式失败');
         }
       } catch (e) {
         error.value = e.message;
+        showNotification(e.message, 'error');
       }
     };
 
@@ -440,11 +490,13 @@ export default {
         
         if (response.ok) {
           error.value = null;
+          showNotification(`手动速度已设置为 ${manualSpeed.value}%`, 'success');
         } else {
           throw new Error('应用手动速度失败');
         }
       } catch (e) {
         error.value = e.message;
+        showNotification(e.message, 'error');
       }
     };
 
@@ -460,6 +512,25 @@ export default {
       });
     };
 
+    const updatePointCount = () => {
+      const newCount = parseInt(pointCount.value);
+      const currentCount = fanCurve.value.length;
+      
+      if (newCount > currentCount) {
+        // 增加控制点
+        for (let i = currentCount; i < newCount; i++) {
+          const temp = Math.round(30 + (i * 50) / (newCount - 1));
+          const speed = Math.round(10 + (i * 90) / (newCount - 1));
+          fanCurve.value.push({ temp, speed });
+        }
+      } else if (newCount < currentCount) {
+        // 减少控制点
+        fanCurve.value.splice(newCount);
+      }
+      
+      updateCurve();
+    };
+
     const saveCurve = async () => {
       try {
         const response = await fetch(`/api/v1/control/${serverId}/fan/auto`, {
@@ -470,11 +541,13 @@ export default {
         
         if (response.ok) {
           error.value = null;
+          showNotification('温控曲线已保存', 'success');
         } else {
           throw new Error('保存曲线失败');
         }
       } catch (e) {
         error.value = e.message;
+        showNotification(e.message, 'error');
       }
     };
 
@@ -518,7 +591,9 @@ export default {
       updateManualSpeed,
       updateCurve,
       saveCurve,
-      refreshData
+      refreshData,
+      pointCount,
+      updatePointCount
     };
   }
 };
@@ -934,6 +1009,60 @@ export default {
   cursor: pointer;
   font-weight: 500;
   font-size: 1em;
+}
+
+/* 控制点滑块样式 */
+.point-slider {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  margin: 15px 0;
+}
+
+.point-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(45deg, #e94560, #ff6b6b);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
+}
+
+.point-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(45deg, #e94560, #ff6b6b);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
+}
+
+.slider-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.slider-value {
+  background: linear-gradient(45deg, #e94560, #ff6b6b);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+.slider-label {
+  color: #a0aec0;
+  font-size: 0.9em;
 }
 
 /* 响应式设计 */

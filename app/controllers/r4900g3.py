@@ -54,8 +54,8 @@ class R4900G3Controller(BaseServerController):
                 return None
         return None
 
-    async def get_temperature(self) -> float:
-        """获取 CPU 温度 (CPU1 和 CPU2 中的最大值)"""
+    async def _get_temperature_from_ipmi(self) -> float:
+        """从IPMI获取 CPU 温度 (CPU1 和 CPU2 中的最大值)"""
         cpu1_temp = await self._get_single_sensor_temp("CPU1_Temp")
         cpu2_temp = await self._get_single_sensor_temp("CPU2_Temp")
 
@@ -67,7 +67,7 @@ class R4900G3Controller(BaseServerController):
         
         return max(valid_temps)
 
-    async def get_fan_speed(self) -> int:
+    async def _get_fan_speed_from_ipmi(self) -> int:
         """
         R4900 G3 无法直接读取风扇转速，因此返回一个占位符。
         控制逻辑是只写的。

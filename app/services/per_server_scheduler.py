@@ -125,21 +125,22 @@ async def stop_server_control_loop(server_id: int):
 # --- Metrics Recording Logic ---
 
 async def _server_metrics_loop(server: models.Server):
-    """单个服务器的指标记录循环"""
+    """单个服务器的指标记录循环（使用缓存机制）"""
     logger.info(f"Starting metrics loop for server: {server.name} (ID: {server.id})")
     while True:
         try:
             controller = get_controller(server)
+            
+            # 使用缓存机制获取温度和风扇速度
+            # 注意：这里直接使用IPMI方法，因为缓存机制已经在控制器中实现
             temperature = await controller.get_temperature()
             fan_speed = await controller.get_fan_speed()
 
-            async with AsyncSessionLocal() as db:
-                if temperature != -1.0:
-                    await crud.create_temperature_history(db, server_id=server.id, temperature=temperature)
-                if fan_speed != -1:
-                    await crud.create_fan_speed_history(db, server_id=server.id, speed_rpm=fan_speed)
+            # 由于缓存机制会自动将新数据写入数据库，这里不需要重复记录
+            # 只有在数据有效时才记录日志
+            if temperature != -1.0 or fan_speed != -1:
+                logger.info(f"Retrieved metrics for {server.name}: Temp={temperature}°C, Fan={fan_speed} RPM")
             
-            logger.info(f"Recorded metrics for {server.name}: Temp={temperature}°C, Fan={fan_speed} RPM")
             await asyncio.sleep(30) # 指标记录间隔
 
         except asyncio.CancelledError:

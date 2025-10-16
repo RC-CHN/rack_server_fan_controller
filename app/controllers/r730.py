@@ -36,7 +36,7 @@ class R730Controller(BaseServerController):
         
         return stdout.decode().strip()
 
-    async def get_temperature(self) -> float:
+    async def _get_temperature_from_ipmi(self) -> float:
         sensor_data = await self._run_ipmi_command('sensor')
         if not sensor_data:
             return -1.0
@@ -57,7 +57,7 @@ class R730Controller(BaseServerController):
         logger.warning(f"No valid CPU temperature readings found for server {self.server.name}.")
         return -1.0
 
-    async def get_fan_speed(self) -> int:
+    async def _get_fan_speed_from_ipmi(self) -> int:
         # R730 的 ipmitool sensor 输出中通常不直接显示风扇RPM，
         # 而是以百分比显示。这里我们先返回一个占位符。
         # 实际实现可能需要解析 'Fan' 相关的行。

@@ -1,5 +1,9 @@
+import asyncio
 from abc import ABC, abstractmethod
-from .. import models
+from typing import Optional
+from .. import models, crud
+from ..database import AsyncSessionLocal
+from .. import crud_cache
 
 class BaseServerController(ABC):
     """
@@ -13,23 +17,88 @@ class BaseServerController(ABC):
         :param server: 服务器的 SQLAlchemy 模型实例，包含IPMI凭据等信息。
         """
         self.server = server
+        self._temp_cache_age = 30  # 温度缓存有效期（秒）
+        self._fan_cache_age = 60   # 风扇速度缓存有效期（秒）
 
-    @abstractmethod
-    async def get_temperature(self) -> float:
+    async def get_temperature_with_cache(self) -> float:
         """
-        获取用于风扇控制的决策温度。
+        带缓存机制获取温度数据。
+        优先从数据库缓存获取，如果缓存过期则调用IPMI命令获取最新数据。
+        :return: 浮点型的温度值，如果获取失败返回-1.0。
+        """
+        try:
+            async with AsyncSessionLocal() as db:
+                # 尝试从缓存获取
+                cached_temp = await crud_cache.get_latest_temperature(db, self.server.id, self._temp_cache_age)
+                if cached_temp is not None:
+                    return cached_temp
+                
+                # 缓存过期或不存在，从IPMI获取
+                ipmi_temp = await self._get_temperature_from_ipmi()
+                if ipmi_temp != -1.0:
+                    # 将新数据写入数据库作为新的缓存点
+                    await crud.create_temperature_history(db, server_id=self.server.id, temperature=ipmi_temp)
+                return ipmi_temp
+                
+        except Exception as e:
+            print(f"Error getting temperature with cache for {self.server.name}: {e}")
+            return -1.0
+    
+    @abstractmethod
+    async def _get_temperature_from_ipmi(self) -> float:
+        """
+        从IPMI获取温度数据的实际实现。
         对于多路CPU的服务器，此方法应负责处理并返回一个单一的、有代表性的温度值（如最高温或平均温）。
         :return: 浮点型的温度值。
         """
         pass
 
-    @abstractmethod
-    async def get_fan_speed(self) -> int:
+    async def get_temperature(self) -> float:
         """
-        获取服务器风扇的平均转速 (RPM)。
+        获取用于风扇控制的决策温度（使用缓存机制）。
+        对于多路CPU的服务器，此方法应负责处理并返回一个单一的、有代表性的温度值（如最高温或平均温）。
+        :return: 浮点型的温度值。
+        """
+        return await self.get_temperature_with_cache()
+
+    async def get_fan_speed_with_cache(self) -> int:
+        """
+        带缓存机制获取风扇速度数据。
+        优先从数据库缓存获取，如果缓存过期则调用IPMI命令获取最新数据。
+        :return: 整型的风扇速度值，如果获取失败返回-1。
+        """
+        try:
+            async with AsyncSessionLocal() as db:
+                # 尝试从缓存获取
+                cached_speed = await crud_cache.get_latest_fan_speed(db, self.server.id, self._fan_cache_age)
+                if cached_speed is not None:
+                    return cached_speed
+                
+                # 缓存过期或不存在，从IPMI获取
+                ipmi_speed = await self._get_fan_speed_from_ipmi()
+                if ipmi_speed != -1:
+                    # 将新数据写入数据库作为新的缓存点
+                    await crud.create_fan_speed_history(db, server_id=self.server.id, speed_rpm=ipmi_speed)
+                return ipmi_speed
+                
+        except Exception as e:
+            print(f"Error getting fan speed with cache for {self.server.name}: {e}")
+            return -1
+    
+    @abstractmethod
+    async def _get_fan_speed_from_ipmi(self) -> int:
+        """
+        从IPMI获取风扇速度数据的实际实现。
         :return: 整型的平均转速值。
         """
         pass
+
+    async def get_fan_speed(self) -> int:
+        """
+        获取服务器风扇的平均转速 (RPM)（使用缓存机制）。
+        :return: 整型的平均转速值。
+        """
+        return await self.get_fan_speed_with_cache()
 
     async def get_all_sensors(self) -> list[dict]:
         """

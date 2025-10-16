@@ -8,6 +8,10 @@
           <span class="refresh-icon">🔄</span>
           刷新
         </button>
+        <button @click="showAddServerDialog" class="add-server-btn">
+          <span class="btn-icon">➕</span>
+          添加服务器
+        </button>
       </div>
     </div>
 
@@ -72,10 +76,20 @@
         </div>
 
         <div class="card-footer">
-          <router-link :to="{ name: 'ServerDetail', params: { id: server.id } }" class="detail-btn">
-            <span class="btn-icon">⚙️</span>
-            管理详情
-          </router-link>
+          <div class="card-actions">
+            <router-link :to="{ name: 'ServerDetail', params: { id: server.id } }" class="detail-btn">
+              <span class="btn-icon">⚙️</span>
+              管理详情
+            </router-link>
+            <button @click="showEditServerDialog(server)" class="edit-btn">
+              <span class="btn-icon">✏️</span>
+              编辑
+            </button>
+            <button @click="deleteServer(server)" class="delete-btn">
+              <span class="btn-icon">🗑️</span>
+              删除
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -86,18 +100,219 @@
       <p>正在加载服务器列表...</p>
     </div>
   </div>
+
+  <!-- 添加/编辑服务器对话框 -->
+  <div v-if="showDialog" class="dialog-overlay" @click="closeDialog">
+    <div class="dialog-content" @click.stop>
+      <div class="dialog-header">
+        <h3>{{ isEditing ? '编辑服务器' : '添加服务器' }}</h3>
+        <button @click="closeDialog" class="close-dialog">✕</button>
+      </div>
+      
+      <form @submit.prevent="saveServer" class="dialog-form">
+        <div class="form-group">
+          <label for="serverName">服务器名称</label>
+          <input
+            id="serverName"
+            v-model="serverForm.name"
+            type="text"
+            required
+            placeholder="例如: R730-服务器1"
+            class="form-input"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="serverModel">服务器型号</label>
+          <select
+            id="serverModel"
+            v-model="serverForm.model"
+            required
+            class="form-input"
+          >
+            <option value="">请选择型号</option>
+            <option value="r730">Dell PowerEdge R730</option>
+            <option value="r4900g3">H3C R4900 G3</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="ipmiHost">IPMI主机地址</label>
+          <input
+            id="ipmiHost"
+            v-model="serverForm.ipmi_host"
+            type="text"
+            required
+            placeholder="例如: 192.168.1.100"
+            class="form-input"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="ipmiUser">IPMI用户名</label>
+          <input
+            id="ipmiUser"
+            v-model="serverForm.ipmi_user"
+            type="text"
+            required
+            placeholder="例如: admin"
+            class="form-input"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="ipmiPass">IPMI密码</label>
+          <input
+            id="ipmiPass"
+            v-model="serverForm.ipmi_password"
+            type="password"
+            required
+            placeholder="请输入密码"
+            class="form-input"
+          >
+        </div>
+        
+        <div class="dialog-actions">
+          <button type="button" @click="closeDialog" class="cancel-btn">
+            取消
+          </button>
+          <button type="submit" class="save-btn" :disabled="isSaving">
+            {{ isSaving ? '保存中...' : (isEditing ? '更新' : '添加') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
+import { ElNotification } from 'element-plus';
 
 const servers = ref([]);
 const isLoading = ref(true);
 const error = ref(null);
+const showDialog = ref(false);
+const isEditing = ref(false);
+const isSaving = ref(false);
+const editingServer = ref(null);
+
+const serverForm = ref({
+  name: '',
+  model: '',
+  ipmi_host: '',
+  ipmi_user: '',
+  ipmi_password: ''
+});
+
 let pollInterval;
+
+const showNotification = (message, type = 'success', title = '') => {
+  const icons = {
+    success: '✅',
+    warning: '⚠️',
+    error: '❌',
+    info: 'ℹ️'
+  };
+  
+  ElNotification({
+    title: title || (type === 'success' ? '成功' : type === 'error' ? '错误' : '提示'),
+    message: message,
+    type: type,
+    icon: icons[type],
+    duration: 3000,
+    position: 'top-right'
+  });
+};
 
 const refreshData = () => {
   fetchServers();
+};
+
+const showAddServerDialog = () => {
+  isEditing.value = false;
+  editingServer.value = null;
+  serverForm.value = {
+    name: '',
+    model: '',
+    ipmi_host: '',
+    ipmi_user: '',
+    ipmi_password: ''
+  };
+  showDialog.value = true;
+};
+
+const showEditServerDialog = (server) => {
+  isEditing.value = true;
+  editingServer.value = server;
+  serverForm.value = {
+    name: server.name,
+    model: server.model,
+    ipmi_host: server.ipmi_host,
+    ipmi_user: server.ipmi_user,
+    ipmi_password: '' // 密码不显示，需要重新输入
+  };
+  showDialog.value = true;
+};
+
+const closeDialog = () => {
+  showDialog.value = false;
+  isEditing.value = false;
+  editingServer.value = null;
+};
+
+const saveServer = async () => {
+  isSaving.value = true;
+  try {
+    const url = isEditing.value
+      ? `/api/v1/servers/${editingServer.value.id}`
+      : '/api/v1/servers';
+    
+    const method = isEditing.value ? 'PUT' : 'POST';
+    
+    const response = await fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(serverForm.value)
+    });
+    
+    if (response.ok) {
+      showNotification(
+        isEditing.value ? '服务器信息已更新' : '服务器添加成功',
+        'success'
+      );
+      closeDialog();
+      await fetchServers();
+    } else {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || '操作失败');
+    }
+  } catch (e) {
+    showNotification(e.message, 'error');
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const deleteServer = async (server) => {
+  if (!confirm(`确定要删除服务器 "${server.name}" 吗？此操作不可恢复。`)) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/v1/servers/${server.id}`, {
+      method: 'DELETE'
+    });
+    
+    if (response.ok) {
+      showNotification('服务器已删除', 'success');
+      await fetchServers();
+    } else {
+      throw new Error('删除失败');
+    }
+  } catch (e) {
+    showNotification(e.message, 'error');
+  }
 };
 
 const fetchServerStatus = async (server) => {
@@ -205,6 +420,11 @@ onUnmounted(() => {
   margin: 0;
   font-size: 1.8em;
   color: #ffffff;
+}
+
+.header-actions {
+  display: flex;
+  gap: 15px;
 }
 
 .refresh-btn {
@@ -459,6 +679,212 @@ onUnmounted(() => {
   100% { transform: rotate(360deg); }
 }
 
+/* 添加服务器按钮 */
+.add-server-btn {
+  background: linear-gradient(45deg, #38a169, #4ade80);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.add-server-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+}
+
+/* 卡片操作按钮 */
+.card-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.edit-btn, .delete-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+  transition: all 0.2s;
+}
+
+.edit-btn:hover {
+  background: rgba(66, 153, 225, 0.3);
+  border-color: #4299e1;
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #ef4444;
+}
+
+/* 对话框样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.dialog-content {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  border-radius: 12px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dialog-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.3em;
+}
+
+.close-dialog {
+  background: none;
+  border: none;
+  color: #a0aec0;
+  font-size: 1.5em;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.close-dialog:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.dialog-form {
+  padding: 20px;
+}
+
+.form-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 15px;
+}
+
+.form-group label {
+  flex-shrink: 0;
+  width: 100px; /* 控制左边长度 */
+  text-align: right;
+  color: #cbd5e0; /* 调亮字体颜色 */
+  font-weight: 500;
+  font-size: 0.9em;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 1em;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #e94560;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.form-input::placeholder {
+  color: #a0aec0; /* 调整占位符颜色 */
+  opacity: 0.8;
+}
+
+select.form-input {
+  cursor: pointer;
+}
+
+select.form-input option {
+  background: #16213e; /* 为下拉选项添加深色背景 */
+  color: #ffffff;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: flex-end;
+  margin-top: 30px;
+}
+
+.cancel-btn, .save-btn {
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.cancel-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #a0aec0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.save-btn {
+  background: linear-gradient(45deg, #38a169, #4ade80);
+  color: white;
+}
+
+.save-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+}
+
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* 滚动条样式 - iOS风格 */
 ::-webkit-scrollbar {
   width: 6px;
@@ -510,6 +936,15 @@ onUnmounted(() => {
   .header-bar {
     flex-direction: column;
     gap: 15px;
+  }
+  
+  .card-actions {
+    flex-direction: column;
+  }
+  
+  .dialog-content {
+    width: 95%;
+    margin: 20px;
   }
 }
 </style>
